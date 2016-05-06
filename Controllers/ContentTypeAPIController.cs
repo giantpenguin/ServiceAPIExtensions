@@ -85,7 +85,15 @@ namespace ServiceAPIExtensions.Controllers
             if (ct == null) return NotFound();
 
             return Ok(ct.PropertyDefinitions.Select(pd =>
-                new {key=pd.Name, type="unicode", required=false, label=pd.EditCaption, help_text=pd.HelpText}));
+                new
+                {
+                    key = pd.Name,
+                    type = !string.IsNullOrEmpty(pd.Type.TypeName)
+                    ? pd.Type.TypeName : pd.Type.DefinitionType.Name,
+                    required = pd.Required,
+                    label = pd.EditCaption,
+                    help_text = pd.HelpText
+                }));
         }
 
 
