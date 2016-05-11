@@ -67,68 +67,84 @@ namespace ServiceAPIExtensions.Controllers
         {
             dynamic e = new ExpandoObject();
             var dic = e as IDictionary<string, object>;
-            e.Name = c.Name;
-            e.ParentLink = c.ParentLink;
-            e.ContentGuid = c.ContentGuid;
-            e.ContentLink = c.ContentLink;
-            e.ContentTypeID = c.ContentTypeID;
-            //TODO: Resolve Content Type
-            var parts = (Select == null) ? null : Select.Split(',');
-
-            if (c is MediaData)
+            if (c != null)
             {
-                dynamic Media = new ExpandoObject();
-                var md = c as MediaData;
-                Media.MimeType = md.MimeType;
-                Media.RouteSegment = md.RouteSegment;
-                if (IncludeBinary)
+                e.Name = c.Name;
+                e.ParentLink = c.ParentLink;
+                e.ContentGuid = c.ContentGuid;
+                e.ContentLink = c.ContentLink;
+                e.ContentTypeID = c.ContentTypeID;
+
+                // Handle page links (if content is page)
+                if (c.GetType().IsAssignableFrom(typeof(PageData)))
                 {
-                    using (var br = new BinaryReader(md.BinaryData.OpenRead()))
-                    {
-                        Media.Binary = Convert.ToBase64String(br.ReadBytes((int)br.BaseStream.Length));
-                    }
+                    var page = (PageData)c;
+                    e.ExternalURL = page.ExternalURL;
+                    e.LinkURL = page.LinkURL;
+                    e.URLSegment = page.URLSegment;
+                    e.StaticLinkURL = page.StaticLinkURL;
                 }
-                dic.Add("Media", Media);
-            }
-            
-            foreach (var pi in c.Property)
-            {
-                if (parts != null && (!parts.Contains(pi.Name))) continue;
 
-                if (pi.Value != null)
+                //TODO: Resolve Content Type
+                var parts = (Select == null) ? null : Select.Split(',');
+
+                if (c is MediaData)
                 {
-                    if (pi.Type == PropertyDataType.Block)
+                    dynamic Media = new ExpandoObject();
+                    var md = c as MediaData;
+                    Media.MimeType = md.MimeType;
+                    Media.RouteSegment = md.RouteSegment;
+                    if (IncludeBinary)
                     {
-                        //TODO: Doesn't work. Check SiteLogoType on start page
-                        if(pi.Value is IContent)  dic.Add(pi.Name, ConstructExpandoObject((IContent)pi.Value));
-                    }
-                    else if (pi is EPiServer.SpecializedProperties.PropertyContentArea)
-                    {
-                        //TODO: Loop through and make array
-                        var pca = pi as EPiServer.SpecializedProperties.PropertyContentArea;
-                        ContentArea ca = pca.Value as ContentArea;
-                        List<ExpandoObject> lst=new List<ExpandoObject>();
-                        foreach(var itm in ca.Items){
-                            dynamic itmobj = ConstructExpandoObject(itm.GetContent());
-                            lst.Add(itmobj);
+                        using (var br = new BinaryReader(md.BinaryData.OpenRead()))
+                        {
+                            Media.Binary = Convert.ToBase64String(br.ReadBytes((int)br.BaseStream.Length));
                         }
-                        dic.Add(pi.Name, lst.ToArray());
-
-                    } 
-                    else if (pi.Value is string[])
-                    {
-                        dic.Add(pi.Name, (pi.Value as string[]));
                     }
-                    else if (pi.Value is Int32  || pi.Value is Boolean || pi.Value is DateTime || pi.Value is Double)
-                    {
-                        dic.Add(pi.Name, pi.Value);
-                    }
-                    else { 
-                        //TODO: Handle different return values
-                        dic.Add(pi.Name, (pi.Value != null) ? pi.ToWebString() : null);
-                    }
+                    dic.Add("Media", Media);
                 }
-                    
+
+                foreach (var pi in c.Property)
+                {
+                    if (parts != null && (!parts.Contains(pi.Name))) continue;
+
+                    if (pi.Value != null)
+                    {
+                        if (pi.Type == PropertyDataType.Block)
+                        {
+                            //TODO: Doesn't work. Check SiteLogoType on start page
+                            if (pi.Value is IContent) dic.Add(pi.Name, ConstructExpandoObject((IContent)pi.Value));
+                        }
+                        else if (pi is EPiServer.SpecializedProperties.PropertyContentArea)
+                        {
+                            //TODO: Loop through and make array
+                            var pca = pi as EPiServer.SpecializedProperties.PropertyContentArea;
+                            ContentArea ca = pca.Value as ContentArea;
+                            List<ExpandoObject> lst = new List<ExpandoObject>();
+                            foreach (var itm in ca.Items)
+                            {
+                                dynamic itmobj = ConstructExpandoObject(itm.GetContent());
+                                lst.Add(itmobj);
+                            }
+                            dic.Add(pi.Name, lst.ToArray());
+
+                        }
+                        else if (pi.Value is string[])
+                        {
+                            dic.Add(pi.Name, (pi.Value as string[]));
+                        }
+                        else if (pi.Value is Int32 || pi.Value is Boolean || pi.Value is DateTime || pi.Value is Double)
+                        {
+                            dic.Add(pi.Name, pi.Value);
+                        }
+                        else
+                        {
+                            //TODO: Handle different return values
+                            dic.Add(pi.Name, (pi.Value != null) ? pi.ToWebString() : null);
+                        }
+                    }
+
+                }
             }
             return e;
         }
@@ -167,7 +183,32 @@ namespace ServiceAPIExtensions.Controllers
         {
             var r = LookupRef(Reference);
             if (r == ContentReference.EmptyReference) return NotFound();
-            _repo.Save(_repo.Get<IContent>(r), EPiServer.DataAccess.SaveAction.Publish);
+            var content = _repo.Get<IContent>(r);
+            var pageData = content as PageData;
+            if (pageData != null)
+            {
+                var writable = pageData.CreateWritableClone();
+                _repo.Save(writable, EPiServer.DataAccess.SaveAction.Publish);
+            }
+            else
+            {
+                var blockData = content as BlockData;
+                if (blockData != null)
+                {
+                    var writable = blockData.CreateWritableClone();
+                    _repo.Save((IContent)writable, EPiServer.DataAccess.SaveAction.Publish);
+                }
+                else
+                {
+                    var mediaData = content as MediaData;
+                    if (mediaData != null)
+                    {
+                        var writable = mediaData.CreateWritableClone();
+                        _repo.Save((IContent)writable, EPiServer.DataAccess.SaveAction.Publish);
+                    }
+                }
+            }
+
             return Ok();
         }
 
