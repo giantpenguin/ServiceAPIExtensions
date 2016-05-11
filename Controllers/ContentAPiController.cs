@@ -183,7 +183,8 @@ namespace ServiceAPIExtensions.Controllers
         {
             var r = LookupRef(Reference);
             if (r == ContentReference.EmptyReference) return NotFound();
-            var pageData = _repo.Get<IContent>(r) as PageData;
+            var content = _repo.Get<IContent>(r);
+            var pageData = content as PageData;
             if (pageData != null)
             {
                 var writable = pageData.CreateWritableClone();
@@ -191,11 +192,20 @@ namespace ServiceAPIExtensions.Controllers
             }
             else
             {
-                var blockData = _repo.Get<IContent>(r) as BlockData;
+                var blockData = content as BlockData;
                 if (blockData != null)
                 {
                     var writable = blockData.CreateWritableClone();
                     _repo.Save((IContent)writable, EPiServer.DataAccess.SaveAction.Publish);
+                }
+                else
+                {
+                    var mediaData = content as MediaData;
+                    if (mediaData != null)
+                    {
+                        var writable = mediaData.CreateWritableClone();
+                        _repo.Save((IContent)writable, EPiServer.DataAccess.SaveAction.Publish);
+                    }
                 }
             }
 
