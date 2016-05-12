@@ -392,18 +392,28 @@ namespace ServiceAPIExtensions.Controllers
             return d;
         }
 
-        [AuthorizePermission("EPiServerServiceApi", "WriteAccess"),HttpPost, Route("{Ref}/Upload/{name}")]
-        public virtual IHttpActionResult UploadBlob(string Ref, string name, [FromBody] byte[] data)
+        [AuthorizePermission("EPiServerServiceApi", "WriteAccess"), HttpPost, Route("{mediaRef}/Upload/{fileName}")]
+        public virtual IHttpActionResult UploadBlob(string mediaRef, string fileName, [FromBody] byte[] data)
         {
-            var r = LookupRef(Ref);
-            if (r == null) return NotFound();
+            if (string.IsNullOrWhiteSpace(mediaRef) || string.IsNullOrWhiteSpace(fileName)
+                || data == null || data.Length < 1)
+            {
+                return BadRequest("Argument is null/empty.");
+            }
+
+            var r = LookupRef(mediaRef);
+            if (r == null)
+            {
+                return NotFound();
+            }
+
             var icnt=_repo.Get<IContent>(r);
             //TODO: Support Chunks - if blob already exist, extend on it.
 
             if (icnt is MediaData)
             {
                 var md = (MediaData) (icnt as MediaData).CreateWritableClone();
-                WriteBlobToStorage(name, data, md);
+                WriteBlobToStorage(fileName, data, md);
                 _repo.Save(md, EPiServer.DataAccess.SaveAction.Publish); //Should we always publish?
                 return Ok();
             }
