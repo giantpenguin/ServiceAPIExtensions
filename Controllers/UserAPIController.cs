@@ -74,10 +74,11 @@ namespace ServiceAPIExtensions.Controllers
                 u = Membership.CreateUser(UserName, Membership.GeneratePassword(10, 2));
             }
             u.Email = (string)Payload.Email;
-            u.LastLoginDate = (DateTime)Payload.LastLoginDate;
+            if (Payload.LastLoginDate != null)
+                u.LastLoginDate = (DateTime)Payload.LastLoginDate;
             Membership.UpdateUser(u);
 
-            return Ok();
+            return Ok(u.UserName);
         }
 
         [AuthorizePermission("EPiServerServiceApi", "WriteAccess"), HttpPut, Route("roles/{rolename}")]
