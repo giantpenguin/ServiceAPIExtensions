@@ -38,6 +38,14 @@ namespace ServiceAPIExtensions.Controllers
             return Ok(lst.ToArray());
         }
 
+        [HttpGet]
+        [Route("roles")]
+        [AuthorizePermission("EPiServerServiceApi", "ReadAccess")]
+        public virtual IHttpActionResult ListAllRoles()
+        {
+            return Ok(Roles.GetAllRoles());
+        }
+
 
         private static void ProfileTest()
         {
@@ -113,25 +121,50 @@ namespace ServiceAPIExtensions.Controllers
         public virtual IHttpActionResult GetUser(string UserName)
         {
             var u = FindUser(UserName);
-            return Ok((ExpandoObject)BuildUserObject(u));
+
+            return u != null ? (IHttpActionResult)Ok((ExpandoObject)BuildUserObject(u))
+                : (IHttpActionResult)NotFound();
         }
 
         [AuthorizePermission("EPiServerServiceApi", "ReadAccess"), HttpGet, Route("{UserName}/roles")]
         public virtual IHttpActionResult GetRolesForUser(string UserName)
         {
-
             var u = FindUser(UserName);
+            if (u == null)
+            {
+                return NotFound();
+            }
+
             var lst = Roles.GetRolesForUser(u.UserName);
             return Ok(lst);
         }
 
-        [AuthorizePermission("EPiServerServiceApi", "WriteAccess"), HttpPut, Route("{UserName}/roles")]
-        public virtual IHttpActionResult PutUserInRole(string UserName, [FromBody]dynamic Payload)
+        [HttpPut]
+        [Route("{UserName}/roles")]
+        [AuthorizePermission("EPiServerServiceApi", "WriteAccess")]
+        public virtual IHttpActionResult PutUserInRoles(string UserName, [FromBody] dynamic Payload)
         {
             var u = FindUser(UserName);
-            Roles.AddUserToRole(u.UserName, (string)Payload.Role);
-            var lst = Roles.GetRolesForUser(u.UserName);
-            return Ok();
+            if (u == null)
+            {
+                return NotFound();
+            }
+
+            var roles = (string)Payload.Roles;
+            if (string.IsNullOrWhiteSpace(roles))
+            {
+                return BadRequest("Roles is required.");
+            }
+
+            var validRoles = roles.Split(new char[]{','}, StringSplitOptions.RemoveEmptyEntries);
+            var allRoles = Roles.GetAllRoles();
+
+            validRoles = validRoles.Where(r => !string.IsNullOrWhiteSpace(r) &&
+                allRoles.Any(sr => sr.Equals(r, StringComparison.InvariantCultureIgnoreCase))).ToArray();
+
+            Roles.AddUserToRoles(u.UserName, validRoles);
+
+            return Ok(Roles.GetRolesForUser(u.UserName));
         }
 
         [AuthorizePermission("EPiServerServiceApi", "WriteAccess"), HttpDelete, Route("{UserName}/roles")]
@@ -146,6 +179,11 @@ namespace ServiceAPIExtensions.Controllers
 
         private static MembershipUser FindUser(string UserName)
         {
+            if (string.IsNullOrWhiteSpace(UserName))
+            {
+                return null;
+            }
+
             var col = Membership.FindUsersByName(UserName);
             if ((col.Count == 0) && (UserName.Contains('@'))) col = Membership.FindUsersByEmail(UserName);
             var u = col.Cast<MembershipUser>().FirstOrDefault();
