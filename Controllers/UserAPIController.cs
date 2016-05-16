@@ -68,17 +68,21 @@ namespace ServiceAPIExtensions.Controllers
         public virtual IHttpActionResult CreateUpdateUser(string UserName, [FromBody] dynamic Payload)
         {
             var u = FindUser(UserName);
+            var generatedPassword = string.Empty;
             if (u == null)
             {
                 //User does not exist, create
-                u = Membership.CreateUser(UserName, Membership.GeneratePassword(10, 2));
+                generatedPassword = Membership.GeneratePassword(10, 2);
+                u = Membership.CreateUser(UserName, generatedPassword);
             }
-            u.Email = (string)Payload.Email;
+            if (Payload.Email != null)
+                u.Email = (string)Payload.Email;
             if (Payload.LastLoginDate != null)
                 u.LastLoginDate = (DateTime)Payload.LastLoginDate;
+
             Membership.UpdateUser(u);
 
-            return Ok(u.UserName);
+            return Ok(new { UserName = u.UserName, Password = generatedPassword });
         }
 
         [AuthorizePermission("EPiServerServiceApi", "WriteAccess"), HttpPut, Route("roles/{rolename}")]
