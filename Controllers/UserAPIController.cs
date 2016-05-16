@@ -83,12 +83,34 @@ namespace ServiceAPIExtensions.Controllers
                 generatedPassword = Membership.GeneratePassword(10, 2);
                 u = Membership.CreateUser(UserName, generatedPassword);
             }
-            if (Payload.Email != null)
-                u.Email = (string)Payload.Email;
-            if (Payload.LastLoginDate != null)
-                u.LastLoginDate = (DateTime)Payload.LastLoginDate;
 
-            Membership.UpdateUser(u);
+            if (Payload == null)
+            {
+                return Ok(new { UserName = u.UserName, Password = generatedPassword });
+            }
+
+            var sRoles = (string)Payload.Roles;
+            if (!string.IsNullOrWhiteSpace(sRoles))
+            {
+                AddRoles(u, sRoles);
+            }
+
+            var needUpdate = false;
+            if (Payload.Email != null)
+            {
+                u.Email = (string)Payload.Email;
+                needUpdate = true;
+            }
+            if (Payload.LastLoginDate != null)
+            {
+                u.LastLoginDate = (DateTime)Payload.LastLoginDate;
+                needUpdate = true;
+            }
+
+            if (needUpdate)
+            {
+                Membership.UpdateUser(u);
+            }
 
             return Ok(new { UserName = u.UserName, Password = generatedPassword });
         }
@@ -154,19 +176,13 @@ namespace ServiceAPIExtensions.Controllers
                 return NotFound();
             }
 
-            var roles = (string)Payload.Roles;
-            if (string.IsNullOrWhiteSpace(roles))
+            var sRoles = Payload != null ? (string)Payload.Roles : string.Empty;
+            if (string.IsNullOrWhiteSpace(sRoles))
             {
                 return BadRequest("Roles is required.");
             }
-
-            var validRoles = roles.Split(new char[]{','}, StringSplitOptions.RemoveEmptyEntries);
-            var allRoles = Roles.GetAllRoles();
-
-            validRoles = validRoles.Where(r => !string.IsNullOrWhiteSpace(r) &&
-                allRoles.Any(sr => sr.Equals(r, StringComparison.InvariantCultureIgnoreCase))).ToArray();
-
-            Roles.AddUserToRoles(u.UserName, validRoles);
+            
+            AddRoles(u, sRoles);
 
             return Ok(Roles.GetRolesForUser(u.UserName));
         }
@@ -200,6 +216,21 @@ namespace ServiceAPIExtensions.Controllers
         public virtual ApiVersion Version()
         {
             return new ApiVersion();
+        }
+
+        private void AddRoles(MembershipUser user, string roles)
+        {
+            if (user == null && string.IsNullOrWhiteSpace(roles))
+            {
+                return;
+            }
+
+            var userRoles = roles.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            var allRoles = Roles.GetAllRoles();
+            var validRoles = userRoles.Where(r => !string.IsNullOrWhiteSpace(r) &&
+                allRoles.Any(sr => sr.Equals(r, StringComparison.InvariantCultureIgnoreCase))).ToArray();
+
+            Roles.AddUserToRoles(user.UserName, validRoles);
         }
     }
 }
