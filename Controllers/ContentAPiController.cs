@@ -228,7 +228,9 @@ namespace ServiceAPIExtensions.Controllers
             else return Ok();
         }
         
-        [AuthorizePermission("EPiServerServiceApi", "ReadAccess"), HttpPost,HttpGet, Route("{Reference}/query/{contenttype?}")]
+        [Route("{Reference}/query/{contenttype?}")]
+        [HttpPost, HttpGet]
+        [AuthorizePermission("EPiServerServiceApi", "ReadAccess")]
         public virtual IHttpActionResult QueryDescendents(string Reference, [FromBody] ExpandoObject Query, string contenttype = null, string Select = null, int Skip = 0, int Take = 100)
         {
             var r = LookupRef(Reference);
@@ -249,7 +251,9 @@ namespace ServiceAPIExtensions.Controllers
             return Ok(ToReturn.Select(c =>ConstructExpandoObject(c, Select)).ToArray());
         }
 
-        [AuthorizePermission("EPiServerServiceApi", "WriteAccess"), HttpPut, Route("{Reference}")]
+        [Route("{Reference}")]
+        [HttpPut, HttpPost]
+        [AuthorizePermission("EPiServerServiceApi", "WriteAccess")]
         public virtual IHttpActionResult PutContent(string Reference, [FromBody] ExpandoObject Updated, EPiServer.DataAccess.SaveAction action = EPiServer.DataAccess.SaveAction.Save)
         {
             var r = LookupRef(Reference);
